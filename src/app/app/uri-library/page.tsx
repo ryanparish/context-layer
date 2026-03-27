@@ -427,7 +427,7 @@ function SearchableTemplateSelect({
     <div className="relative min-w-0 flex-1">
       <button
         type="button"
-        className="field !mt-0 flex w-full items-center justify-between gap-2 text-left"
+        className="field !mt-0 flex min-h-[48px] min-w-0 flex-1 !w-auto items-center justify-between gap-2 px-3 py-3 text-left text-sm sm:text-base"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((o) => !o);
@@ -541,8 +541,8 @@ export default function UriLibraryPage() {
   const [actorIfiType, setActorIfiType] = useState<ActorIfiType>("mbox");
   const [planMapping, setPlanMapping] = useState<Record<string, RefField>>({
     actorMbox: { mode: "literal", value: "mailto:learner@example.com" },
-    verbId: { mode: "var", value: "verb.id" },
-    objectId: { mode: "var", value: "object.id" },
+    verbId: { mode: "literal", value: "http://adlnet.gov/expapi/verbs/experienced" },
+    objectId: { mode: "literal", value: "https://example.com/xapi/activities/example" },
   });
 
   function buildPlanMappingPayload(): Record<string, unknown> {
@@ -555,9 +555,13 @@ export default function UriLibraryPage() {
   const [lrsTestLoading, setLrsTestLoading] = useState(false);
   const [lrsTestResult, setLrsTestResult] = useState<unknown>(null);
   const [lrsTestError, setLrsTestError] = useState<string | null>(null);
+  const [lrsVoidLoading, setLrsVoidLoading] = useState(false);
+  const [lrsVoidError, setLrsVoidError] = useState<string | null>(null);
+  const [lrsVoidResult, setLrsVoidResult] = useState<unknown>(null);
   /** Dotted paths → sample values for URI template variable segments (merged into Variables JSON for preview/LRS). */
   const [templateSampleVars, setTemplateSampleVars] = useState<Record<string, string>>({});
   const [plannerExtras, setPlannerExtras] = useState<Record<string, boolean>>({
+    objectDefinition: false,
     context: false,
     metadata: false,
     result: false,
@@ -610,6 +614,28 @@ export default function UriLibraryPage() {
       return next;
     });
   }, [planMapping, templates]);
+
+  const needsStripInvalidTemplateModes = useMemo(
+    () =>
+      Object.entries(planMapping).some(([k, v]) => k !== "objectId" && v?.mode === "template"),
+    [planMapping],
+  );
+
+  useEffect(() => {
+    if (!needsStripInvalidTemplateModes) return;
+    setPlanMapping((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const [k, v] of Object.entries(next)) {
+        if (k === "objectId" || !v) continue;
+        if (v.mode === "template") {
+          next[k] = { mode: "var", value: v.value };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [needsStripInvalidTemplateModes]);
 
   const effectiveVerbs = useMemo(
     () => (verbs.length ? verbs : registryFallbackVerbs),
@@ -1327,9 +1353,29 @@ export default function UriLibraryPage() {
     }
   }
 
+  const lrsTestVoidable = useMemo(() => {
+    if (!lrsTestResult || typeof lrsTestResult !== "object") return null;
+    const o = lrsTestResult as Record<string, unknown>;
+    if (o.ok !== true) return null;
+    const posted = o.statementPosted;
+    if (!posted || typeof posted !== "object") return null;
+    const p = posted as Record<string, unknown>;
+    const id =
+      typeof o.statementId === "string" && o.statementId.trim()
+        ? o.statementId
+        : typeof p.id === "string"
+          ? p.id
+          : null;
+    const actor = p.actor;
+    if (!id?.trim() || !actor || typeof actor !== "object" || Array.isArray(actor)) return null;
+    return { statementId: id, actor };
+  }, [lrsTestResult]);
+
   async function sendStatementToLrs() {
     setLrsTestError(null);
     setLrsTestResult(null);
+    setLrsVoidError(null);
+    setLrsVoidResult(null);
     if (!lrsTestConnectionId.trim()) {
       setLrsTestError("Select an LRS connection.");
       return;
@@ -1369,22 +1415,72 @@ export default function UriLibraryPage() {
     }
   }
 
-  function renderRefField(key: string, label: string, placeholder: string) {
-    const mode = (planMapping[key]?.mode ?? "var") as RefMode;
+  async function voidLrsTestStatement() {
+    setLrsVoidError(null);
+    setLrsVoidResult(null);
+    if (!lrsTestVoidable || !lrsTestConnectionId.trim()) {
+      setLrsVoidError("Nothing to void, or LRS connection is missing.");
+      return;
+    }
+    setLrsVoidLoading(true);
+    try {
+      const res = await fetch("/api/uri-library/statement-plans/lrs-void", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          connectionId: lrsTestConnectionId,
+          voidedStatementId: lrsTestVoidable.statementId,
+          actor: lrsTestVoidable.actor,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!res.ok) {
+        throw new Error(typeof data?.error === "string" ? data.error : "Void request failed");
+      }
+      setLrsVoidResult(data);
+    } catch (e) {
+      setLrsVoidError(e instanceof Error ? e.message : "Void request failed");
+    } finally {
+      setLrsVoidLoading(false);
+    }
+  }
+
+  function renderRefField(
+    key: string,
+    label: string,
+    placeholder: string,
+    opts?: { allowTemplate?: boolean; comfortable?: boolean },
+  ) {
+    const allowTemplate = opts?.allowTemplate ?? false;
+    const comfortable = opts?.comfortable ?? false;
+    const rawMode = (planMapping[key]?.mode ?? "literal") as RefMode;
+    const mode: RefMode = !allowTemplate && rawMode === "template" ? "var" : rawMode;
     const val = planMapping[key]?.value ?? "";
+    const showTemplatePicker = allowTemplate && mode === "template";
     return (
-      <div key={key} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <label className="text-sm">{label}</label>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-start">
+      <div key={key} className={`rounded-lg border border-slate-200 bg-slate-50 ${comfortable ? "p-4" : "p-3"}`}>
+        <label className={comfortable ? "text-base font-medium text-slate-900" : "text-sm"}>{label}</label>
+        <div
+          className={
+            comfortable
+              ? "mt-3 flex flex-col gap-3 sm:flex-row sm:items-center"
+              : "mt-2 flex flex-col gap-2 sm:flex-row sm:items-center"
+          }
+        >
           <select
-            className="field !mt-0 sm:w-[130px]"
+            className={
+              comfortable
+                ? "field !mt-0 w-full min-h-[48px] shrink-0 text-base sm:!w-40"
+                : "field !mt-0 w-full min-h-[44px] shrink-0 text-sm sm:!w-36"
+            }
             value={mode}
             onChange={(e) => {
               const nextMode = e.target.value as RefMode;
+              if (!allowTemplate && nextMode === "template") return;
               setPlanMapping((prev) => {
                 const prevVal = prev[key]?.value ?? "";
                 let nextVal = prevVal;
-                if (nextMode === "template") {
+                if (nextMode === "template" && allowTemplate) {
                   const first = templates[0]?.id ?? "";
                   nextVal = templates.some((t) => t.id === prevVal) ? prevVal : first;
                 }
@@ -1395,13 +1491,13 @@ export default function UriLibraryPage() {
               });
             }}
           >
-            <option value="var">var</option>
             <option value="literal">literal</option>
-            <option value="template">template</option>
+            <option value="var">var</option>
+            {allowTemplate ? <option value="template">template</option> : null}
           </select>
-          {mode === "template" ? (
+          {showTemplatePicker ? (
             templates.length === 0 ? (
-              <p className="text-xs text-amber-800">Save a URI template in the Templates tab first.</p>
+              <p className="text-sm text-amber-800">Save a URI template in the Templates tab first.</p>
             ) : (
               <SearchableTemplateSelect
                 templates={templates}
@@ -1416,12 +1512,16 @@ export default function UriLibraryPage() {
             )
           ) : (
             <input
-              className="field !mt-0 min-w-0 flex-1"
+              className={
+                comfortable
+                  ? "field !mt-0 min-h-[48px] w-full min-w-0 text-base sm:flex-1 sm:!w-auto"
+                  : "field !mt-0 min-h-[44px] w-full min-w-0 text-sm sm:flex-1 sm:!w-auto"
+              }
               value={val}
               onChange={(e) =>
                 setPlanMapping((prev) => ({
                   ...prev,
-                  [key]: { mode: (prev[key]?.mode ?? "var") as RefMode, value: e.target.value },
+                  [key]: { mode: (prev[key]?.mode ?? "literal") as RefMode, value: e.target.value },
                 }))
               }
               placeholder={placeholder}
@@ -2010,7 +2110,9 @@ export default function UriLibraryPage() {
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="text-sm font-semibold text-slate-900">Default required fields</div>
             <p className="mt-1 text-xs text-slate-600">
-              Minimum statement: actor + verb + object. Choose exactly one actor identifier (IFI). Storyline variables are validated after resolution in Preview JSON.
+              Minimum statement: actor + verb + object. Choose exactly one actor identifier (IFI). Account IFI fields
+              support <strong>literal</strong> or <strong>var</strong> only. Only <strong>Object IRI</strong> can use a
+              saved URI <strong>template</strong>. Storyline variables are validated after resolution in Preview JSON.
             </p>
             <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-white p-3 md:col-span-2">
@@ -2043,19 +2145,24 @@ export default function UriLibraryPage() {
                   : null}
                 {actorIfiType === "openid" ? renderRefField("actorOpenid", "openid", "https://openid.example.com/user") : null}
                 {actorIfiType === "account" ? (
-                  <>
-                    {renderRefField("actorAccountHomePage", "Account homePage (URI)", "https://lms.example.com")}
-                    {renderRefField("actorAccountName", "Account name", "learner.login")}
-                  </>
+                  <div className="mt-2 space-y-4">
+                    {renderRefField("actorAccountHomePage", "Account homePage (URI)", "https://lms.example.com", {
+                      comfortable: true,
+                    })}
+                    {renderRefField("actorAccountName", "Account name", "learner.login", { comfortable: true })}
+                  </div>
                 ) : null}
               </div>
-              {renderRefField("objectId", "Object IRI", "object.id")}
+              <div className="md:col-span-2">
+                {renderRefField("objectId", "Object IRI", "object.id", { allowTemplate: true })}
+              </div>
             </div>
           </div>
           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="text-sm font-semibold text-slate-900">Add optional components</div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {[
+                ["objectDefinition", "Object definition"],
                 ["result", "Result"],
                 ["context", "Context"],
                 ["metadata", "Metadata"],
@@ -2076,10 +2183,14 @@ export default function UriLibraryPage() {
             </div>
           </div>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            {renderRefField("objectDefinitionName", "Object definition name", "object.name")}
-            {renderRefField("objectDefinitionDescription", "Object definition description", "object.description")}
-            {renderRefField("objectDefinitionType", "Object definition type", "object.definition.type")}
-            {renderRefField("objectDefinitionMoreInfo", "Object definition moreInfo", "object.definition.moreInfo")}
+            {plannerExtras.objectDefinition ? (
+              <>
+                {renderRefField("objectDefinitionName", "Object definition name", "object.name")}
+                {renderRefField("objectDefinitionDescription", "Object definition description", "object.description")}
+                {renderRefField("objectDefinitionType", "Object definition type", "object.definition.type")}
+                {renderRefField("objectDefinitionMoreInfo", "Object definition moreInfo", "object.definition.moreInfo")}
+              </>
+            ) : null}
             {plannerExtras.result ? (
               <>
                 {renderRefField("resultScoreRaw", "Result score raw", "result.score.raw")}
@@ -2215,9 +2326,36 @@ export default function UriLibraryPage() {
             )}
             {lrsTestError ? <div className="mt-2 text-xs text-red-700">{lrsTestError}</div> : null}
             {lrsTestResult ? (
-              <pre className="mt-3 max-h-[360px] overflow-auto rounded border border-slate-200 bg-white p-2 text-xs text-slate-800">
-                {JSON.stringify(lrsTestResult, null, 2)}
-              </pre>
+              <>
+                <pre className="mt-3 max-h-[360px] overflow-auto rounded border border-slate-200 bg-white p-2 text-xs text-slate-800">
+                  {JSON.stringify(lrsTestResult, null, 2)}
+                </pre>
+                {lrsTestVoidable ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="text-xs font-semibold text-slate-900">Void test statement</div>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Per xAPI, voiding posts a new statement using the{" "}
+                      <code className="rounded bg-slate-100 px-1">http://adlnet.gov/expapi/verbs/voided</code> verb whose
+                      object is a <code className="rounded bg-slate-100 px-1">StatementRef</code> to the statement you
+                      just sent. The actor matches your test statement so the LRS can accept the void.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-secondary mt-2"
+                      disabled={lrsVoidLoading || !lrsTestConnectionId}
+                      onClick={() => void voidLrsTestStatement()}
+                    >
+                      {lrsVoidLoading ? "Voiding…" : "Void this statement in the LRS"}
+                    </button>
+                  </div>
+                ) : null}
+                {lrsVoidError ? <div className="mt-2 text-xs text-red-700">{lrsVoidError}</div> : null}
+                {lrsVoidResult ? (
+                  <pre className="mt-2 max-h-[280px] overflow-auto rounded border border-emerald-200 bg-emerald-50/80 p-2 text-xs text-slate-800">
+                    {JSON.stringify(lrsVoidResult, null, 2)}
+                  </pre>
+                ) : null}
+              </>
             ) : null}
           </div>
           {plans.length > 0 ? <div className="mt-2 text-xs text-slate-600">{plans.length} saved statement plan(s).</div> : null}

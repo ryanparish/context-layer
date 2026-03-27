@@ -17,7 +17,7 @@ export async function resolveTemplateUrisForMapping(
   for (const [k, v] of Object.entries(mapping as Record<string, unknown>)) {
     if (k === "actorIfiType") continue;
     if (v && typeof v === "object" && v !== null && "mode" in v && (v as { mode: string }).mode === "template") {
-      const id = String((v as { value: string }).value ?? "").trim();
+      const id = String((v as unknown as { value?: string }).value ?? "").trim();
       if (id) ids.add(id);
     }
   }
