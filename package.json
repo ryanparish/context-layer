@@ -1,0 +1,43 @@
+{
+  "name": "context-layer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "preflight": "node ./scripts/preflight.mjs app",
+    "preflight:worker": "node ./scripts/preflight.mjs worker",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "worker": "npm run preflight:worker && tsx ./src/worker.ts",
+    "db:bootstrap": "node ./scripts/db-bootstrap.mjs",
+    "db:migrate:safe": "node ./scripts/migrate-safe.mjs",
+    "dev:bootstrap": "npm run preflight && npm run db:bootstrap && npm run dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.71.1",
+    "ioredis": "^5.10.1",
+    "iron-webcrypto": "^2.0.0",
+    "jose": "^6.2.2",
+    "next": "16.2.1",
+    "pg": "^8.20.0",
+    "prisma": "^6.19.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f1117;
+  --foreground: #f4f4f5;
+  --accent: #ea580c;
+  --accent-foreground: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  border-color: #2a2f3a;
+}
+
+/* Light cards on dark app shell — default text is high-contrast navy/slate */
+.panel {
+  @apply rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-md shadow-black/10;
+}
+
+.field {
+  @apply mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25;
+}
+
+.btn-primary {
+  @apply rounded-lg bg-orange-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 disabled:opacity-50 shadow-sm shadow-orange-500/30;
+}
+
+.btn-secondary {
+  @apply rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50;
+}
+
+/* For dark surfaces only (e.g. sidebar) */
+.btn-secondary-dark {
+  @apply rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-800;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-rethink-sans), Arial, Helvetica, sans-serif;
+  color: #fafafa;
+}
+
+/* Headings inside light panels inherit dark text */
+.panel h1,
+.panel h2,
+.panel h3,
+.panel h4,
+.panel h5,
+.panel h6 {
+  color: #0f172a;
+}
+
+.panel label {
+  @apply text-slate-800 font-medium;
+}
+
+.panel code {
+  @apply rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-800;
+}

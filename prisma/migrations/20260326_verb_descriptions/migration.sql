@@ -1,0 +1,2 @@
+ALTER TABLE "XapiVerb"
+  ADD COLUMN IF NOT EXISTS "description" TEXT;
