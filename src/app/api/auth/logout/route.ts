@@ -1,19 +1,19 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { getSessionCookieName } from "@/server/auth/session";
 
-export async function POST() {
-  const jar = await cookies();
-  jar.set(getSessionCookieName(), "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
+const clearCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 0,
+};
 
-  const url = new URL("/login", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000");
-  return NextResponse.redirect(url, { status: 303 });
+export async function POST(req: Request) {
+  const url = new URL("/login", req.url);
+  const res = NextResponse.redirect(url, { status: 303 });
+  res.cookies.set(getSessionCookieName(), "", clearCookieOptions);
+  return res;
 }
 

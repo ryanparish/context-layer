@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { messageFromAuthResponse } from "@/lib/authApiError";
+
 export default function SignupPage() {
-  const router = useRouter();
   const [tenantName, setTenantName] = useState("");
   const [tenantSlug, setTenantSlug] = useState("");
   const [email, setEmail] = useState("");
@@ -19,14 +19,15 @@ export default function SignupPage() {
     try {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
+        credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ tenantName, tenantSlug, email, password }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? "Signup failed");
+        const data = await res.json().catch(() => null);
+        throw new Error(messageFromAuthResponse(data));
       }
-      router.push("/app");
+      window.location.assign("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
     } finally {

@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { messageFromAuthResponse } from "@/lib/authApiError";
+
 export default function LoginPage() {
-  const router = useRouter();
   const [tenantSlug, setTenantSlug] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,14 +18,16 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ tenantSlug, email, password }),
       });
       if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? "Login failed");
+        const data = await res.json().catch(() => null);
+        throw new Error(messageFromAuthResponse(data));
       }
-      router.push("/app");
+      // Full navigation so the session cookie is always sent on the next request (avoids RSC race with router.push).
+      window.location.assign("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
