@@ -5,7 +5,7 @@
   "scripts": {
     "preflight": "node ./scripts/preflight.mjs app",
     "preflight:worker": "node ./scripts/preflight.mjs worker",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -16,10 +16,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
-    "adm-zip": "^0.5.16",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.1",
-    "fast-xml-parser": "^5.5.9",
     "ioredis": "^5.10.1",
     "iron-webcrypto": "^2.0.0",
     "jose": "^6.2.2",

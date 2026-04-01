@@ -23,6 +23,28 @@ export function getSessionCookieName() {
   return COOKIE_NAME;
 }
 
+/**
+ * Session cookies use `Secure` in production by default so they only go over HTTPS.
+ * On HTTP test hosts (plain IP or http://), set SESSION_COOKIE_SECURE=false so login works.
+ * When unset: secure = NODE_ENV === "production".
+ */
+export function sessionCookieSecure(): boolean {
+  const raw = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase();
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
+
+export function getSessionCookieOptions(overrides?: { maxAge?: number }) {
+  return {
+    httpOnly: true as const,
+    sameSite: "lax" as const,
+    secure: sessionCookieSecure(),
+    path: "/",
+    maxAge: overrides?.maxAge ?? 60 * 60 * 24 * 7,
+  };
+}
+
 export async function signSession(payload: SessionPayload) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })

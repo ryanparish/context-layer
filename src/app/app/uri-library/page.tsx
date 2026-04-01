@@ -2122,10 +2122,10 @@ export default function UriLibraryPage() {
                   value={actorIfiType}
                   onChange={(e) => setActorIfiType(e.target.value as ActorIfiType)}
                 >
-                  <option value="mbox">mbox (mailto IRI)</option>
-                  <option value="mbox_sha1sum">mbox_sha1sum (SHA-1 hex of mailto IRI)</option>
-                  <option value="openid">openid (URI)</option>
-                  <option value="account">account (homePage + name)</option>
+                  <option value="mbox">mbox</option>
+                  <option value="mbox_sha1sum">mbox_sha1sum</option>
+                  <option value="openid">openid</option>
+                  <option value="account">account</option>
                 </select>
                 <p className="mt-2 text-xs text-slate-600">
                   {actorIfiType === "mbox"

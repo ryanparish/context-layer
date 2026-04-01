@@ -78,3 +78,31 @@ Before app/worker startup, preflight checks now validate:
 - Redis reachability for worker startup (`PING`)
 
 This gives immediate, actionable errors when dependencies are down.
+
+## Test server / Docker (production-style)
+
+Build the app image:
+
+```bash
+docker build -t context-layer .
+```
+
+Run **Postgres + Redis + app** together (good for a shared test host):
+
+```bash
+# In .env (same directory), set at least:
+# DATABASE_URL=postgresql://context:context@db:5432/context_layer
+# REDIS_URL=redis://redis:6379
+# APP_ENCRYPTION_KEY=<openssl rand -hex 32>
+# SESSION_SECRET=<openssl rand -base64 32>
+# SESSION_COOKIE_SECURE=false   # required for plain http:// unless you terminate TLS
+
+docker compose -f docker-compose.stack.yml --env-file .env up -d --build
+docker compose -f docker-compose.stack.yml --env-file .env run --rm app node scripts/db-bootstrap.mjs
+```
+
+Then open `http://<host>:3000`. Sign up creates the first tenant; login needs **tenant slug + email + password**.
+
+### Login over HTTP (test servers)
+
+With `NODE_ENV=production`, session cookies default to **`Secure`**, so browsers will **not** store them on **http://** (only **https://**). That looks like “login succeeds then immediately kicks back to `/login`.” Set `SESSION_COOKIE_SECURE=false` when you are not using HTTPS. Remove or set to `true` once TLS is in front of the app.

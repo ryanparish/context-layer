@@ -2,18 +2,10 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/server/db";
 import { verifyPassword } from "@/server/auth/password";
-import { signSession, getSessionCookieName } from "@/server/auth/session";
+import { signSession, getSessionCookieName, getSessionCookieOptions } from "@/server/auth/session";
 import { loginSchema } from "@/server/auth/schemas";
 
 export const runtime = "nodejs";
-
-const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: 60 * 60 * 24 * 7,
-};
 
 export async function POST(req: Request) {
   try {
@@ -42,7 +34,7 @@ export async function POST(req: Request) {
     const token = await signSession({ userId: user.id, tenantId: tenant.id, role: user.role });
 
     const res = NextResponse.json({ ok: true });
-    res.cookies.set(getSessionCookieName(), token, sessionCookieOptions);
+    res.cookies.set(getSessionCookieName(), token, getSessionCookieOptions());
     return res;
   } catch (e) {
     const message = e instanceof Error ? e.message : "Server error";
