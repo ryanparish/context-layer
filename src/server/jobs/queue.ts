@@ -12,11 +12,12 @@ declare global {
 
 export function getRedisConnection() {
   if (!globalThis.__redisConnection) {
-    const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+    // Prefer 127.0.0.1: on macOS, localhost can resolve to ::1 while Docker binds IPv4 only.
+    const redisUrl = process.env.REDIS_URL?.trim() || "redis://127.0.0.1:6379";
     globalThis.__redisConnection = new IORedis(redisUrl, {
       maxRetriesPerRequest: null,
       lazyConnect: true,
-      connectTimeout: 1500,
+      connectTimeout: 5000,
       enableOfflineQueue: false,
       retryStrategy: () => 1500,
     });

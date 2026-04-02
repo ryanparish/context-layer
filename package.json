@@ -5,7 +5,8 @@
   "scripts": {
     "preflight": "node ./scripts/preflight.mjs app",
     "preflight:worker": "node ./scripts/preflight.mjs worker",
-    "dev": "next dev --webpack",
+    "dev": "next dev --turbo",
+    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

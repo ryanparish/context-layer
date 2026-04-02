@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { Client } from "pg";
-
-import { getRedisConnection } from "@/server/jobs/queue";
+import IORedis from "ioredis";
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
   return Promise.race([
@@ -30,12 +29,36 @@ export async function GET() {
     checks.db = { ok: false, detail: e instanceof Error ? e.message : "db check failed" };
   }
 
+  let redis: IORedis | null = null;
   try {
-    const redis = getRedisConnection();
-    await withTimeout(redis.ping(), 2000, "redis");
+    const redisUrl = process.env.REDIS_URL?.trim() || "redis://127.0.0.1:6379";
+    redis = new IORedis(redisUrl, {
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+      enableOfflineQueue: true,
+      connectTimeout: 5000,
+      retryStrategy: () => null,
+    });
+    await withTimeout(
+      (async () => {
+        await redis!.connect();
+        const pong = await redis!.ping();
+        if (pong !== "PONG") throw new Error(`Unexpected PING reply: ${String(pong)}`);
+      })(),
+      8000,
+      "redis",
+    );
     checks.redis = { ok: true };
   } catch (e) {
     checks.redis = { ok: false, detail: e instanceof Error ? e.message : "redis check failed" };
+  } finally {
+    if (redis) {
+      try {
+        redis.disconnect();
+      } catch {
+        // ignore
+      }
+    }
   }
 
   const ok = Object.values(checks).every((c) => c.ok);

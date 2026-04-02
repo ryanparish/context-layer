@@ -5,6 +5,10 @@
   --foreground: #f4f4f5;
   --accent: #ea580c;
   --accent-foreground: #ffffff;
+  /* Local stacks only — avoids next/font/google network fetches that can hang dev/SSR */
+  --font-geist-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  --font-rethink-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 @theme inline {

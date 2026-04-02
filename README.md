@@ -79,6 +79,41 @@ Before app/worker startup, preflight checks now validate:
 
 This gives immediate, actionable errors when dependencies are down.
 
+## Tenant API keys (Bearer, RFC 6750)
+
+For Postman and server-to-server calls, prefer **tenant API keys** over copying cookies.
+
+1. Sign in as **OWNER** or **ADMIN** → **Settings** → **Tenant API keys** → create a key and copy the secret **once**.
+2. Send **`Authorization: Bearer <secret>`** on API requests (same tenant-scoped routes as the web app, e.g. `/api/connections`, URI Library, statement plan `invoke`, etc.).
+3. Keys are stored as a **one-way hash**; revoking a key takes effect immediately. Each key acts as the **creator’s user** for permissions.
+
+**Session cookie** (`ctx_session`) still works for the browser and for tools that cannot set headers; use **Bearer** when you can.
+
+## Statement plan API (Postman / integrations)
+
+Programmatic use of a **URI Library → Statement plan** (expected parameters + LRS send).
+
+**Auth:** `Authorization: Bearer <tenant API key>` **or** cookie `ctx_session=<value>` after browser sign-in.
+
+1. **GET** `http://localhost:3000/api/uri-library/statement-plans/<planId>/invoke-spec`  
+   Header: `Authorization: Bearer <key>` (or `Cookie: ctx_session=…`)  
+   Returns field refs (`literal` / `var` / `template`), variable paths, and the exact **POST** path + body shape.
+2. **POST** `http://localhost:3000/api/uri-library/statement-plans/<planId>/invoke`  
+   Headers: `Content-Type: application/json`, `Authorization: Bearer <key>` (or session cookie)  
+   Body (JSON):
+   ```json
+   {
+     "connectionId": "<id from GET /api/connections — type lrs_xapi_basic>",
+     "variables": { "learner": { "email": "alice@example.com" } },
+     "storeLocally": true
+   }
+   ```
+   `variables` must supply values for every `mode: var` path (nested JSON matching dotted paths). Template-driven fields are resolved from the same object plus your saved URI templates.
+
+Optional: set **`NEXT_PUBLIC_APP_URL`** (e.g. `http://localhost:3000`) so `invoke-spec` includes an absolute POST URL.
+
+List plan IDs with **GET** `/api/uri-library/statement-plans` (same auth).
+
 ## Test server / Docker (production-style)
 
 Build the app image:

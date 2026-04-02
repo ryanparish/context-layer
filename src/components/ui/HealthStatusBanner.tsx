@@ -123,6 +123,12 @@ export default function HealthStatusBanner() {
         ) : null}
       </div>
       {!collapsed && error ? <div className="mt-1 text-red-300">Unable to refresh health: {error}</div> : null}
+      {!collapsed && payload?.checks?.redis?.ok === false && payload.checks.redis.detail ? (
+        <div className="mt-1 text-amber-200/90">Redis: {payload.checks.redis.detail}</div>
+      ) : null}
+      {!collapsed && payload?.checks?.db?.ok === false && payload.checks.db.detail ? (
+        <div className="mt-1 text-amber-200/90">DB: {payload.checks.db.detail}</div>
+      ) : null}
     </div>
   );
 }
