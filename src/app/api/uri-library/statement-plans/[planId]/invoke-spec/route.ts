@@ -73,6 +73,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ planId: 
         storeLocally:
           "boolean (optional, default true) — also save the statement in xAPIvate and run workflow triggers",
       },
+      /** Paste into Postman / curl; set `variables` from `summary.variablePaths` (nested JSON for dotted paths). */
+      bodyExample: {
+        connectionId: "<from GET /api/connections — type lrs_xapi_basic>",
+        variables: {},
+        storeLocally: true,
+      },
     },
     notes: [
       "Recommended: create a tenant API key (Settings → API keys, OWNER/ADMIN only) and send Authorization: Bearer <secret>. Keys act as the creator’s user for permissions.",

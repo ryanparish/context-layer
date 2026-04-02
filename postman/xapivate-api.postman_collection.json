@@ -1,0 +1,94 @@
+{
+  "info": {
+    "_postman_id": "c4f8a1b2-3d5e-6f70-89ab-cdef01234567",
+    "name": "xAPIvate API",
+    "description": "Tenant-scoped API using **Bearer** tenant keys (Settings → Tenant API keys) or browser session cookies.\n\n1. In the app, create an API key as **OWNER** or **ADMIN** and paste it into the **apiKey** collection variable.\n2. Run **Connections → List connections**; copy an **lrs_xapi_basic** id into **connectionId**.\n3. Run **Statement plans → List plans**; copy a **plan id** into **planId**.\n4. Run **Statement plans → Invoke spec**, then **Invoke plan** (POST).\n\nSet **baseUrl** if not using localhost (e.g. `https://your-host`).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "apiKey", "value": "" },
+    { "key": "planId", "value": "" },
+    { "key": "connectionId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{apiKey}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health (no auth)",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/health",
+        "description": "Process + DB + Redis checks. No Bearer required."
+      }
+    },
+    {
+      "name": "Session / identity",
+      "item": [
+        {
+          "name": "GET /api/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/me",
+            "description": "Confirms Bearer key or cookie; returns `user.authVia` (`api_key` | `session`)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Connections",
+      "item": [
+        {
+          "name": "List connections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/connections",
+            "description": "Use an entry with **type** `lrs_xapi_basic` as **connectionId** for statement plan invoke."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Statement plans",
+      "item": [
+        {
+          "name": "List plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/uri-library/statement-plans",
+            "description": "Lists saved plans; copy **id** to **planId**."
+          }
+        },
+        {
+          "name": "Invoke spec (describe POST body)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/uri-library/statement-plans/{{planId}}/invoke-spec",
+            "description": "Returns `fieldRefs`, `summary.variablePaths`, `post.bodyExample`, and optional `absoluteUrl` if **NEXT_PUBLIC_APP_URL** is set."
+          }
+        },
+        {
+          "name": "Invoke plan (send to LRS)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"connectionId\": \"{{connectionId}}\",\n  \"variables\": {},\n  \"storeLocally\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/uri-library/statement-plans/{{planId}}/invoke",
+            "description": "Fill **variables** per invoke-spec (`summary.variablePaths`). **storeLocally**: also persist in xAPIvate and run workflows."
+          }
+        }
+      ]
+    }
+  ]
+}

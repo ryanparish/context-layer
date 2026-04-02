@@ -13,7 +13,13 @@ const links = [
   { href: "/contact", label: "Contact" },
 ];
 
-type MeUser = { id: string; email: string; role: string; tenantId: string };
+type MeUser = {
+  id: string;
+  email: string;
+  role: string;
+  tenantId: string;
+  authVia?: "session" | "api_key";
+};
 
 export default function PublicNav() {
   const pathname = usePathname();

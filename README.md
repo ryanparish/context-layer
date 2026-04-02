@@ -89,6 +89,10 @@ For Postman and server-to-server calls, prefer **tenant API keys** over copying 
 
 **Session cookie** (`ctx_session`) still works for the browser and for tools that cannot set headers; use **Bearer** when you can.
 
+### Postman
+
+Import **`postman/xapivate-api.postman_collection.json`**. Set collection variables **`baseUrl`**, **`apiKey`** (from Settings), then **`connectionId`** and **`planId`** from the list requests. **`GET /api/me`** accepts the same Bearer token to verify the key.
+
 ## Statement plan API (Postman / integrations)
 
 Programmatic use of a **URI Library → Statement plan** (expected parameters + LRS send).

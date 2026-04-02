@@ -5,7 +5,10 @@
   "scripts": {
     "preflight": "node ./scripts/preflight.mjs app",
     "preflight:worker": "node ./scripts/preflight.mjs worker",
-    "dev": "next dev --turbo",
+    "dev": "next dev --webpack",
+    "dev:turbo": "next dev --turbo",
+    "dev:recover": "node ./scripts/dev-recover.mjs",
+    "dev:recover:full": "node ./scripts/dev-recover.mjs --docker",
     "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",

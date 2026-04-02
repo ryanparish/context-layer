@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { getSessionCookieName, verifySession } from "@/server/auth/session";
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (!pathname.startsWith("/app")) return NextResponse.next();
@@ -22,4 +22,3 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/app/:path*"],
 };
-
