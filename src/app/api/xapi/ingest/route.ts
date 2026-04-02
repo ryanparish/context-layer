@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 import { extractXapiIndexFields } from "@/server/xapi/extract";
 import { enqueueWorkflowsForStatement } from "@/server/workflows/engine";
 
@@ -11,7 +11,7 @@ const ingestSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);

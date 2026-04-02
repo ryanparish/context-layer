@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 
 const runsQuery = z.object({
   workflowId: z.string().optional(),
@@ -10,7 +10,7 @@ const runsQuery = z.object({
 });
 
 export async function GET(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);

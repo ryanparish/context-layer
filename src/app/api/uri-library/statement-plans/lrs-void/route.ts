@@ -1,31 +1,45 @@
+import { randomUUID } from "crypto";
+
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { prisma } from "@/server/db";
 import { resolveTenantContext } from "@/server/auth/tenantContext";
 import { decryptJson } from "@/server/crypto/secrets";
 import { lrsStatementsPostUrl } from "@/server/connectors/lrsUrl";
-import { ConnectionCredentials } from "@/server/connectors/types";
-import { buildGenericXapiTestStatement } from "@/server/xapi/genericTestStatement";
+import type { ConnectionCredentials } from "@/server/connectors/types";
+
+const voidBodySchema = z.object({
+  connectionId: z.string().min(1),
+  voidedStatementId: z.string().min(1),
+  actor: z.record(z.string(), z.unknown()),
+});
+
+export const runtime = "nodejs";
 
 /**
- * POST a minimal valid xAPI statement to the real LRS (same as production traffic).
- * Used to validate Basic auth + endpoint for SCORM Cloud and other LRSs.
+ * POST a voiding statement to the LRS (references a StatementRef), for planner live-test cleanup.
  */
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request) {
   const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const body = await req.json().catch(() => null);
+  const parsed = voidBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
+  }
+
   const connection = await prisma.connection.findFirst({
-    where: { id, tenantId: session.tenantId },
+    where: { id: parsed.data.connectionId, tenantId: session.tenantId },
     include: { secret: true },
   });
   if (!connection?.secret) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Connection not found" }, { status: 404 });
   }
   if (connection.type !== "lrs_xapi_basic") {
     return NextResponse.json(
-      { error: "POST validation is only available for xAPI LRS (Basic) connections." },
+      { error: "connectionId must be an xAPI LRS (Basic) connection" },
       { status: 400 },
     );
   }
@@ -52,7 +66,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const user = decrypted.credentials.username.trim();
   const pass = decrypted.credentials.password.trim();
   const auth = "Basic " + Buffer.from(`${user}:${pass}`, "utf8").toString("base64");
-  const statement = buildGenericXapiTestStatement();
+
+  const voidStatement = {
+    id: randomUUID(),
+    actor: parsed.data.actor,
+    verb: {
+      id: "http://adlnet.gov/expapi/verbs/voided",
+      display: { "en-US": "voided" },
+    },
+    object: {
+      objectType: "StatementRef",
+      id: parsed.data.voidedStatementId,
+    },
+  };
 
   let lrsRes: Response;
   try {
@@ -64,7 +90,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         "X-Experience-API-Version": "1.0.3",
         Accept: "application/json, */*",
       },
-      body: JSON.stringify(statement),
+      body: JSON.stringify(voidStatement),
       cache: "no-store",
     });
   } catch (e) {
@@ -73,7 +99,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         ok: false,
         error: e instanceof Error ? e.message : "LRS request failed",
         postUrl: url,
-        statementId: statement.id,
+        statementId: voidStatement.id,
       },
       { status: 502 },
     );
@@ -88,7 +114,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       responseBody = responseText;
     }
   }
-
   const location = lrsRes.headers.get("location") ?? lrsRes.headers.get("Location");
 
   if (!lrsRes.ok) {
@@ -99,7 +124,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         error: `LRS returned HTTP ${lrsRes.status}`,
         body: responseBody,
         postUrl: url,
-        statementId: statement.id,
+        statementId: voidStatement.id,
       },
       { status: 502 },
     );
@@ -107,12 +132,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   return NextResponse.json({
     ok: true,
-    httpStatus: lrsRes.status,
+    statementId: voidStatement.id,
+    voidedStatementId: parsed.data.voidedStatementId,
     postUrl: url,
-    statementId: statement.id,
+    httpStatus: lrsRes.status,
     responseBody,
     location,
-    message:
-      "Validation statement accepted by the LRS. You should see this statement id in your LRS if you query recent activity.",
   });
 }

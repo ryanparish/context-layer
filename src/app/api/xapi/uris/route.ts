@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 
 const createSchema = z.object({
   iri: z.string().url(),
@@ -10,8 +10,8 @@ const createSchema = z.object({
   kind: z.string().min(1).max(40).optional(),
 });
 
-export async function GET() {
-  const session = await requireSession().catch(() => null);
+export async function GET(req: Request) {
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const uris = await prisma.xapiUri.findMany({
@@ -25,7 +25,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);

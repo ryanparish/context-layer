@@ -2,7 +2,7 @@ import type { z } from "zod";
 
 import { prisma } from "@/server/db";
 import { buildUriFromTemplate, uriSegmentsSchema } from "@/server/uriLibrary";
-import { statementPlanMappingSchema } from "@/server/xapiStatementPlan";
+import { statementPlanMappingSchema } from "@/server/statementPlanXapi";
 
 /**
  * For each field in the plan mapping with mode "template", resolves the URI template

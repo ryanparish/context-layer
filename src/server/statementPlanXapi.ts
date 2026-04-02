@@ -1,3 +1,8 @@
+/**
+ * xAPI statement plan mapping, validation, and preview builder.
+ * Kept as `statementPlanXapi.ts` (not `xapiStatementPlan`) so Turbopack does not confuse this module
+ * with Prisma’s `prisma.xapiStatementPlan` delegate.
+ */
 import { z } from "zod";
 
 /** literal = fixed string; var = dotted path into variables JSON; template = resolve a saved URI template id to an IRI. */
@@ -56,7 +61,8 @@ export const statementPlanMappingSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["actorMboxSha1sum"],
-            message: "Actor IFI type mbox_sha1sum requires an mbox_sha1sum mapping (40 hex chars, SHA-1 of mailto IRI).",
+            message:
+              "Actor IFI type mbox_sha1sum requires an mbox_sha1sum mapping (40 hex chars, SHA-1 of mailto IRI).",
           });
         }
         break;
@@ -402,4 +408,3 @@ export function buildStatementPreview(
 
   return statement;
 }
-

@@ -29,8 +29,47 @@ type Plan = {
   name: string;
   description: string | null;
   uriTemplateId: string | null;
-  mapping: Record<string, RefField>;
+  mapping: Record<string, unknown>;
+  active: boolean;
+  updatedAt: string;
 };
+
+const PLANNER_EXTRA_GROUP_KEYS: Record<string, string[]> = {
+  objectDefinition: [
+    "objectDefinitionName",
+    "objectDefinitionDescription",
+    "objectDefinitionType",
+    "objectDefinitionMoreInfo",
+  ],
+  result: [
+    "resultScoreScaled",
+    "resultScoreRaw",
+    "resultScoreMin",
+    "resultScoreMax",
+    "resultSuccess",
+    "resultCompletion",
+    "resultResponse",
+    "resultDuration",
+  ],
+  context: ["contextRegistration", "contextJson"],
+  metadata: ["metadataJson"],
+  stored: ["stored"],
+  authority: ["authorityJson"],
+  version: ["version"],
+  attachments: ["attachmentsJson"],
+};
+
+function isRefField(v: unknown): v is RefField {
+  return (
+    !!v &&
+    typeof v === "object" &&
+    v !== null &&
+    "mode" in v &&
+    "value" in v &&
+    typeof (v as { mode: unknown }).mode === "string" &&
+    typeof (v as { value: unknown }).value === "string"
+  );
+}
 type StorylineValidationEvent = {
   id: string;
   at: string;
@@ -530,6 +569,8 @@ export default function UriLibraryPage() {
   const [planName, setPlanName] = useState("Default xAPI plan");
   const [planDescription, setPlanDescription] = useState("");
   const [planTemplateId, setPlanTemplateId] = useState("");
+  /** When set, Save updates this plan; when null, Save creates a new plan. */
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [planPreview, setPlanPreview] = useState("");
   const [verbs, setVerbs] = useState<VerbOption[]>([]);
   const [verbSourceMode, setVerbSourceMode] = useState<"registry" | "custom">("registry");
@@ -1255,6 +1296,148 @@ export default function UriLibraryPage() {
     }
   }
 
+  function startNewStatementPlan() {
+    setEditingPlanId(null);
+    setPlanName("Default xAPI plan");
+    setPlanDescription("");
+    setPlanTemplateId("");
+    setPlannerExtras({
+      objectDefinition: false,
+      context: false,
+      metadata: false,
+      result: false,
+      stored: false,
+      authority: false,
+      version: false,
+      attachments: false,
+    });
+    setPlanPreview("");
+    setSpecValidation({ errors: [], warnings: [] });
+    setInfo(null);
+    setError(null);
+    const first = effectiveVerbs[0];
+    if (first?.iri) {
+      setVerbSourceMode("registry");
+      setSelectedRegistryIri(first.iri);
+      setCustomVerbIri(first.iri);
+      setCustomVerbDisplay(first.display ?? "");
+      setCustomVerbDescription(first.description ?? "");
+      setPlanMapping({
+        actorMbox: { mode: "literal", value: "mailto:learner@example.com" },
+        verbId: { mode: "literal", value: first.iri },
+        verbDisplay: { mode: "literal", value: first.display ?? "" },
+        objectId: { mode: "literal", value: "https://example.com/xapi/activities/example" },
+      });
+    } else {
+      setPlanMapping({
+        actorMbox: { mode: "literal", value: "mailto:learner@example.com" },
+        verbId: { mode: "literal", value: "http://adlnet.gov/expapi/verbs/experienced" },
+        objectId: { mode: "literal", value: "https://example.com/xapi/activities/example" },
+      });
+    }
+  }
+
+  function loadStatementPlan(plan: Plan) {
+    const raw = plan.mapping;
+    const ifiRaw = raw.actorIfiType;
+    const ifi: ActorIfiType =
+      ifiRaw === "mbox" || ifiRaw === "mbox_sha1sum" || ifiRaw === "openid" || ifiRaw === "account"
+        ? ifiRaw
+        : "mbox";
+    setActorIfiType(ifi);
+
+    const nextMap: Record<string, RefField> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (k === "actorIfiType") continue;
+      if (isRefField(v)) nextMap[k] = v;
+    }
+    if (!nextMap.verbId) {
+      nextMap.verbId = { mode: "literal", value: "http://adlnet.gov/expapi/verbs/experienced" };
+    }
+    if (!nextMap.objectId) {
+      nextMap.objectId = { mode: "literal", value: "https://example.com/xapi/activities/example" };
+    }
+    setPlanMapping(nextMap);
+
+    const extras: Record<string, boolean> = {
+      objectDefinition: false,
+      context: false,
+      metadata: false,
+      result: false,
+      stored: false,
+      authority: false,
+      version: false,
+      attachments: false,
+    };
+    for (const [extraKey, keys] of Object.entries(PLANNER_EXTRA_GROUP_KEYS)) {
+      if (keys.some((key) => key in nextMap)) extras[extraKey] = true;
+    }
+    setPlannerExtras(extras);
+
+    setPlanName(plan.name);
+    setPlanDescription(plan.description ?? "");
+    setPlanTemplateId(plan.uriTemplateId ?? "");
+    setEditingPlanId(plan.id);
+    setPlanPreview("");
+    setSpecValidation({ errors: [], warnings: [] });
+    setInfo(`Loaded plan “${plan.name}”. Save updates this plan, or use New plan to create another.`);
+    setError(null);
+
+    const vid = nextMap.verbId;
+    if (vid?.mode === "literal") {
+      const iri = vid.value;
+      const reg = effectiveVerbs.filter((x) => x.source !== "custom").find((x) => x.iri === iri);
+      const cust = effectiveVerbs.filter((x) => x.source === "custom").find((x) => x.iri === iri);
+      if (reg) {
+        setVerbSourceMode("registry");
+        setSelectedRegistryIri(iri);
+        setCustomVerbIri(iri);
+        setCustomVerbDisplay(reg.display);
+        setCustomVerbDescription(reg.description ?? "");
+      } else if (cust) {
+        setVerbSourceMode("custom");
+        setSelectedCustomVerbIri(iri);
+        setCustomVerbIri(iri);
+        setCustomVerbDisplay(cust.display);
+        setCustomVerbDescription(cust.description);
+      } else {
+        setVerbSourceMode("custom");
+        setSelectedCustomVerbIri("");
+        setCustomVerbIri(iri);
+        const disp = nextMap.verbDisplay?.mode === "literal" ? nextMap.verbDisplay.value : "custom";
+        setCustomVerbDisplay(disp);
+        setCustomVerbDescription("Custom verb");
+      }
+    }
+  }
+
+  async function deleteStatementPlan(id: string, name: string) {
+    if (!globalThis.confirm(`Delete statement plan “${name}”? This cannot be undone.`)) return;
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(`/api/uri-library/statement-plans/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(body?.error ?? "Failed to delete plan");
+      if (editingPlanId === id) startNewStatementPlan();
+      setInfo("Statement plan deleted.");
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete plan");
+    }
+  }
+
+  async function copyPlanId(id: string) {
+    try {
+      await navigator.clipboard.writeText(id);
+      setInfo("Plan ID copied to clipboard.");
+    } catch {
+      setError("Could not copy to clipboard.");
+    }
+  }
+
   async function savePlan(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -1277,19 +1460,32 @@ export default function UriLibraryPage() {
         }));
       }
 
-      const res = await fetch("/api/uri-library/statement-plans", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: planName.trim(),
-          description: planDescription.trim() || undefined,
-          uriTemplateId: planTemplateId || undefined,
-          mapping: mappingPayload,
-        }),
-      });
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      const payload = {
+        name: planName.trim(),
+        description: planDescription.trim() || undefined,
+        uriTemplateId: planTemplateId || undefined,
+        mapping: mappingPayload,
+      };
+
+      const res = editingPlanId
+        ? await fetch(`/api/uri-library/statement-plans/${encodeURIComponent(editingPlanId)}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/uri-library/statement-plans", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+      const body = (await res.json().catch(() => null)) as
+        | { error?: string; plan?: Plan }
+        | null;
       if (!res.ok) throw new Error(body?.error ?? "Failed to save statement plan");
-      setInfo("Statement plan saved.");
+      const wasEditing = editingPlanId !== null;
+      if (body?.plan?.id) setEditingPlanId(body.plan.id);
+      setInfo(wasEditing ? "Statement plan updated." : "Statement plan saved.");
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save statement plan");
@@ -1405,7 +1601,14 @@ export default function UriLibraryPage() {
       });
       const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
       if (!res.ok) {
-        throw new Error(typeof data?.error === "string" ? data.error : "LRS test failed");
+        const fromErrors = Array.isArray(data?.errors)
+          ? (data.errors as unknown[]).filter((x): x is string => typeof x === "string").join("; ")
+          : "";
+        const msg =
+          typeof data?.error === "string"
+            ? data.error + (fromErrors ? `: ${fromErrors}` : "")
+            : fromErrors || "LRS test failed";
+        throw new Error(msg);
       }
       setLrsTestResult(data);
     } catch (e) {
@@ -1998,6 +2201,66 @@ export default function UriLibraryPage() {
           <p className="mt-1 text-sm text-slate-600">
             Map incoming variables into actor/verb/object/result/context fields and preview the final JSON statement.
           </p>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-900">Saved statement plans</div>
+              <button type="button" className="btn-secondary text-xs" onClick={() => startNewStatementPlan()}>
+                New plan
+              </button>
+            </div>
+            {editingPlanId ? (
+              <p className="mt-2 text-xs text-orange-800">
+                Editing plan ID <code className="rounded bg-orange-100 px-1">{editingPlanId}</code> — Save updates this
+                plan.
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-slate-600">Save creates a new plan until you load an existing one.</p>
+            )}
+            {plans.length === 0 ? (
+              <p className="mt-2 text-xs text-slate-600">No saved plans yet. Configure the form below and click Save plan.</p>
+            ) : (
+              <ul className="mt-3 max-h-56 space-y-2 overflow-auto text-xs">
+                {plans.map((p) => (
+                  <li
+                    key={p.id}
+                    className={`flex flex-col gap-2 rounded-lg border p-2 sm:flex-row sm:items-center sm:justify-between ${
+                      editingPlanId === p.id ? "border-orange-300 bg-orange-50/80" : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-slate-900">{p.name}</div>
+                      <div className="mt-0.5 truncate text-[11px] text-slate-500" title={p.id}>
+                        ID: {p.id}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        Updated {new Date(p.updatedAt).toLocaleString()}
+                        {!p.active ? " · inactive" : ""}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-1">
+                      <button type="button" className="btn-secondary !px-2 !py-1 text-[11px]" onClick={() => loadStatementPlan(p)}>
+                        Load
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary !px-2 !py-1 text-[11px]"
+                        onClick={() => void copyPlanId(p.id)}
+                      >
+                        Copy ID
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border border-red-200 bg-white !px-2 !py-1 text-[11px] text-red-800 hover:bg-red-50"
+                        onClick={() => void deleteStatementPlan(p.id, p.name)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
               <label className="text-sm">Plan name</label>
@@ -2358,7 +2621,6 @@ export default function UriLibraryPage() {
               </>
             ) : null}
           </div>
-          {plans.length > 0 ? <div className="mt-2 text-xs text-slate-600">{plans.length} saved statement plan(s).</div> : null}
         </form>
       </Reveal>
       ) : null}

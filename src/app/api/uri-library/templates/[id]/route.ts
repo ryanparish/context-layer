@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 import { uriSegmentsSchema } from "@/server/uriLibrary";
 
 const patchSchema = z.object({
@@ -19,7 +19,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);
@@ -49,10 +49,10 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;

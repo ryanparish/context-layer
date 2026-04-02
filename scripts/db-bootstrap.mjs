@@ -83,4 +83,19 @@ if (verbDescriptionStatus !== 0) {
   process.exit(1);
 }
 
+console.log("==> Applying tenant API keys migration (idempotent)");
+const tenantApiKeyStatus = runPrisma([
+  "db",
+  "execute",
+  "--file",
+  "prisma/migrations/20260402_tenant_api_keys/migration.sql",
+  "--schema",
+  "prisma/schema.prisma",
+]);
+
+if (tenantApiKeyStatus !== 0) {
+  console.error("==> Failed applying tenant API keys migration.");
+  process.exit(1);
+}
+
 console.log("==> Database bootstrap complete.");

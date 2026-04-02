@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireSession().catch(() => null);
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;

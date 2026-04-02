@@ -50,6 +50,7 @@ model Tenant {
   storylineBridges StorylineBridge[]
   uriTemplates UriTemplate[]
   statementPlans XapiStatementPlan[]
+  apiKeys      TenantApiKey[]
 }
 
 model User {
@@ -62,6 +63,7 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdTenantApiKeys TenantApiKey[] @relation("TenantApiKeyCreator")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -202,6 +204,25 @@ model XapiStatementPlan {
 
   @@index([tenantId, active])
   @@index([tenantId, uriTemplateId])
+}
+
+/** RFC 6750 Bearer tokens for tenant API access; raw secret shown once at creation. */
+model TenantApiKey {
+  id              String    @id @default(cuid())
+  tenantId        String
+  name            String
+  keyHash         String    @unique
+  hintLast4       String
+  createdByUserId String
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("TenantApiKeyCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 model ConnectorRun {

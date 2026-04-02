@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ function sleep(ms: number) {
 }
 
 export async function GET(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);

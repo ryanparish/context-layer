@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 import { defaultXapiVerbRegistry } from "@/server/xapi/verbs";
 
 const upsertSchema = z.object({
@@ -11,8 +11,8 @@ const upsertSchema = z.object({
   description: z.string().min(1).max(500),
 });
 
-export async function GET() {
-  const session = await requireSession().catch(() => null);
+export async function GET(req: Request) {
+  const session = await resolveTenantContext(req);
   if (!session) {
     // Verbs are not sensitive; allow unsigned-in users to see the seeded registry
     // (custom tenant verbs require a session).
@@ -51,7 +51,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 import { encryptJson } from "@/server/crypto/secrets";
 
 const createConnectionSchema = z.object({
@@ -13,8 +13,8 @@ const createConnectionSchema = z.object({
   options: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function GET() {
-  const session = await requireSession().catch(() => null);
+export async function GET(req: Request) {
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const connections = await prisma.connection.findMany({
@@ -38,7 +38,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);

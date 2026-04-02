@@ -3,7 +3,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 
 import { prisma } from "@/server/db";
-import { requireSession } from "@/server/auth/requireSession";
+import { resolveTenantContext } from "@/server/auth/tenantContext";
 import { hashStorylineToken } from "@/server/storyline/token";
 
 const variableSchema = z.object({
@@ -20,8 +20,8 @@ const createSchema = z.object({
   variables: z.array(variableSchema).optional(),
 });
 
-export async function GET() {
-  const session = await requireSession().catch(() => null);
+export async function GET(req: Request) {
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const bridges = await prisma.storylineBridge.findMany({
@@ -43,7 +43,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await requireSession().catch(() => null);
+  const session = await resolveTenantContext(req);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => null);
