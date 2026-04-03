@@ -22,47 +22,57 @@ function parseBearerToken(req: Request): string | null {
 /**
  * Resolves tenant + user from `Authorization: Bearer <tenant API key>` (RFC 6750), else from session cookie.
  * API keys inherit the creator's user id and role at verification time (revoked if user removed).
+ *
+ * DB/Prisma errors are treated as unauthenticated (null) so a down database does not become opaque HTTP 500s
+ * on every Bearer request; check the dev server log for `[resolveTenantContext]`.
  */
 export async function resolveTenantContext(req: Request): Promise<TenantAuthContext | null> {
-  const bearer = parseBearerToken(req);
-  if (bearer) {
-    const keyHash = hashTenantApiKey(bearer);
-    const row = await prisma.tenantApiKey.findFirst({
-      where: { keyHash, revokedAt: null },
-      select: { id: true, tenantId: true, createdByUserId: true },
-    });
-    if (!row) return null;
-
-    const user = await prisma.user.findFirst({
-      where: { id: row.createdByUserId, tenantId: row.tenantId },
-      select: { id: true, role: true },
-    });
-    if (!user) return null;
-
-    void prisma.tenantApiKey
-      .update({
-        where: { id: row.id },
-        data: { lastUsedAt: new Date() },
-      })
-      .catch(() => {});
-
-    return {
-      tenantId: row.tenantId,
-      userId: user.id,
-      role: user.role,
-      via: "api_key",
-    };
-  }
-
   try {
-    const session = await requireSession();
-    return {
-      tenantId: session.tenantId,
-      userId: session.userId,
-      role: session.role,
-      via: "session",
-    };
-  } catch {
+    const bearer = parseBearerToken(req);
+    if (bearer) {
+      const keyHash = hashTenantApiKey(bearer);
+      const row = await prisma.tenantApiKey.findFirst({
+        where: { keyHash, revokedAt: null },
+        select: { id: true, tenantId: true, createdByUserId: true },
+      });
+      if (!row) return null;
+
+      const user = await prisma.user.findFirst({
+        where: { id: row.createdByUserId, tenantId: row.tenantId },
+        select: { id: true, role: true },
+      });
+      if (!user) return null;
+
+      void prisma.tenantApiKey
+        .update({
+          where: { id: row.id },
+          data: { lastUsedAt: new Date() },
+        })
+        .catch(() => {});
+
+      return {
+        tenantId: row.tenantId,
+        userId: user.id,
+        role: user.role,
+        via: "api_key",
+      };
+    }
+
+    try {
+      const session = await requireSession();
+      return {
+        tenantId: session.tenantId,
+        userId: session.userId,
+        role: session.role,
+        via: "session",
+      };
+    } catch {
+      return null;
+    }
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[resolveTenantContext]", e);
+    }
     return null;
   }
 }
