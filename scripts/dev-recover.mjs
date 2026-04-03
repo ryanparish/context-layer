@@ -99,5 +99,7 @@ if (withDocker) {
 
 console.log("==> Next steps:\n");
 console.log("    npm run dev\n");
+console.log("    After \"Ready\", wait ~20s (or until \"Compiled /\" in the log) before opening the browser.\n");
+console.log("    Opening too early can 500 with missing middleware-manifest.json.\n");
 console.log("    If compile hangs forever: ensure you are on `npm run dev` (Webpack), not dev:turbo\n");
 console.log("    If DB/env errors: npm run preflight\n");

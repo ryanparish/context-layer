@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "100mb",
     },
   },
+  // Default dev cache writes pack files under `.next/dev/cache/webpack/*` and renames `*.pack.gz_`
+  // → `*.pack.gz`. iCloud Drive / Desktop & Documents sync often breaks that rename (ENOENT).
+  // Memory cache avoids on-disk packs; dev is slightly slower on cold start but stable on synced folders.
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = { type: "memory" };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
